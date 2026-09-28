@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 
 from company_analysis import analyze_company
+from data_processor import load_file, validate_data, clean_data
 
 
 st.set_page_config(
@@ -10,21 +11,8 @@ st.set_page_config(
     layout="wide"
 )
 
-
-# ==========================================
-# HEADER
-# ==========================================
-
 st.title("📊 Datvest Investment Intelligence")
-
-st.caption(
-    "Financial analysis and investment research platform"
-)
-
-
-# ==========================================
-# SIDEBAR
-# ==========================================
+st.caption("Financial analysis and investment research platform")
 
 st.sidebar.title("Navigation")
 
@@ -41,10 +29,6 @@ option = st.sidebar.selectbox(
 )
 
 
-# ==========================================
-# DASHBOARD
-# ==========================================
-
 if option == "Dashboard":
 
     st.header("Investment Intelligence Dashboard")
@@ -53,7 +37,7 @@ if option == "Dashboard":
         """
         Welcome to the investment research platform.
 
-        The system is being developed to support:
+        This system is being developed to support:
         financial analysis, risk assessment, valuation,
         portfolio analysis and investment research.
         """
@@ -65,125 +49,179 @@ if option == "Dashboard":
 
     col1.metric("Modules", "6")
     col2.metric("Status", "Development")
-    col3.metric("Analysis Engine", "Active")
+    col3.metric("Data Engine", "Active")
 
-    st.info(
-        "Select Company Analysis from the sidebar to begin."
-    )
+    st.info("Select Company Analysis from the sidebar.")
 
-
-# ==========================================
-# COMPANY ANALYSIS
-# ==========================================
 
 elif option == "Company Analysis":
 
     st.header("🏢 Company Analysis")
 
     st.write(
-        """
-        Enter historical financial information for a company.
-        The system will calculate growth and financial ratios.
-        """
+        "Upload historical financial data for the company you want to analyze."
     )
 
     company_name = st.text_input(
         "Company Name",
-        "Example Holdings"
+        placeholder="e.g. Delta Corporation"
     )
 
-    st.subheader("Historical Financial Data")
+    st.subheader("📁 Upload Financial Data")
 
-    data = pd.DataFrame({
-        "Year": [2022, 2023, 2024, 2025],
-        "Revenue": [100, 120, 140, 165],
-        "Net Income": [10, 12, 15, 19],
-        "Total Assets": [80, 90, 105, 120],
-        "Equity": [40, 45, 52, 60],
-        "Debt": [20, 22, 25, 27],
-        "Current Assets": [30, 35, 40, 45],
-        "Current Liabilities": [15, 17, 20, 22]
-    })
-
-    edited_data = st.data_editor(
-        data,
-        num_rows="fixed",
-        hide_index=True,
-        width="stretch"
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel financial data",
+        type=["csv", "xlsx"]
     )
 
-    if st.button("Analyze Company"):
+    st.divider()
 
-        results = analyze_company(edited_data)
+    st.subheader("Required Data Format")
 
-        st.divider()
+    required_columns = [
+        "Year",
+        "Revenue",
+        "Net Income",
+        "Total Assets",
+        "Equity",
+        "Debt",
+        "Current Assets",
+        "Current Liabilities"
+    ]
 
-        st.subheader(
-            f"📈 {company_name} — Investment Analysis"
-        )
+    st.code(", ".join(required_columns))
 
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            "Revenue Growth",
-            f"{results['Revenue Growth']:.2%}"
-        )
-
-        col2.metric(
-            "Earnings Growth",
-            f"{results['Earnings Growth']:.2%}"
-        )
-
-        col3.metric(
-            "Profit Margin",
-            f"{results['Profit Margin']:.2%}"
-        )
-
-        col4, col5, col6 = st.columns(3)
-
-        col4.metric(
-            "ROE",
-            f"{results['ROE']:.2%}"
-        )
-
-        col5.metric(
-            "ROA",
-            f"{results['ROA']:.2%}"
-        )
-
-        col6.metric(
-            "Debt / Equity",
-            f"{results['Debt-to-Equity']:.2f}"
-        )
-
-        st.subheader("Liquidity")
-
-        st.metric(
-            "Current Ratio",
-            f"{results['Current Ratio']:.2f}"
-        )
-
-        st.divider()
-
-        st.subheader("Financial Trend")
-
-        chart_data = edited_data.set_index("Year")
-
-        st.line_chart(
-            chart_data[
-                ["Revenue", "Net Income"]
-            ]
-        )
+    if uploaded_file is not None:
 
         st.success(
-            "Analysis complete. The results are based on the financial "
-            "data entered above."
+            f"File uploaded: {uploaded_file.name}"
         )
 
+        try:
 
-# ==========================================
-# OTHER MODULES
-# ==========================================
+            data = load_file(uploaded_file)
+
+            st.subheader("🔍 Uploaded Data")
+
+            st.dataframe(
+                data,
+                width="stretch"
+            )
+
+            valid, missing_columns = validate_data(data)
+
+            if not valid:
+
+                st.error("The uploaded file is missing required columns.")
+
+                st.write("Missing columns:")
+
+                for column in missing_columns:
+                    st.write(f"❌ {column}")
+
+            else:
+
+                st.success("✓ Data structure validated successfully.")
+
+                data = clean_data(data)
+
+                st.subheader("📊 Cleaned Financial Data")
+
+                st.dataframe(
+                    data,
+                    width="stretch"
+                )
+
+                if len(data) < 2:
+
+                    st.warning(
+                        "At least two years of data are required."
+                    )
+
+                else:
+
+                    if st.button(
+                        "🚀 Analyze Company",
+                        type="primary"
+                    ):
+
+                        results = analyze_company(data)
+
+                        st.divider()
+
+                        st.subheader(
+                            f"📈 {company_name or 'Company'} Financial Analysis"
+                        )
+
+                        st.subheader("Growth")
+
+                        col1, col2 = st.columns(2)
+
+                        col1.metric(
+                            "Revenue Growth",
+                            f"{results['Revenue Growth']:.2%}"
+                        )
+
+                        col2.metric(
+                            "Earnings Growth",
+                            f"{results['Earnings Growth']:.2%}"
+                        )
+
+                        st.subheader("Profitability")
+
+                        col1, col2, col3 = st.columns(3)
+
+                        col1.metric(
+                            "Profit Margin",
+                            f"{results['Profit Margin']:.2%}"
+                        )
+
+                        col2.metric(
+                            "ROE",
+                            f"{results['ROE']:.2%}"
+                        )
+
+                        col3.metric(
+                            "ROA",
+                            f"{results['ROA']:.2%}"
+                        )
+
+                        st.subheader("Leverage & Liquidity")
+
+                        col1, col2 = st.columns(2)
+
+                        col1.metric(
+                            "Debt / Equity",
+                            f"{results['Debt-to-Equity']:.2f}"
+                        )
+
+                        col2.metric(
+                            "Current Ratio",
+                            f"{results['Current Ratio']:.2f}"
+                        )
+
+                        st.subheader("Financial Trend")
+
+                        chart_data = data.set_index("Year")
+
+                        st.line_chart(
+                            chart_data[
+                                ["Revenue", "Net Income"]
+                            ]
+                        )
+
+                        st.success(
+                            "Analysis completed using the uploaded financial data."
+                        )
+
+        except Exception as error:
+
+            st.error(
+                "The system could not process the uploaded file."
+            )
+
+            st.write(f"Error: {error}")
+
 
 else:
 
